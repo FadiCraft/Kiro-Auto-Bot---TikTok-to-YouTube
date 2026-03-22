@@ -15,7 +15,7 @@ const COMMENTS_DB = 'comments_history.json';
 
 const tiktokAccounts = [
     'https://www.tiktok.com/@films2026_',
-    'https://www.tiktok.com/@sekaleahmed'
+    'https://www.tiktok.com/@adeyu_77'
 ];
 
 // تهيئة اتصال يوتيوب
