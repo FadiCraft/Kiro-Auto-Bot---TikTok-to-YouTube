@@ -6,7 +6,7 @@ const { google } = require('googleapis');
 const YOUTUBE_CONFIG = {
   clientId: "80097892689-fatsck4rfg2n7g66ma33fm9jp24a3fes.apps.googleusercontent.com",
   clientSecret: "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",
-  refreshToken: "1//0402McOnnSfYTCgYIARAAGAQSNwF-L9IrHIeF6t-siXlEk4OREx_1gtOf8_8qEdHq3kDNHMnWpOMWyomF6FndgZvgiFwGYMyAwd4"
+  refreshToken: "1//04OySrfdvka32CgYIARAAGAQSNwF-L9IrDkZiwdv-6X0c9RfppP38Ngo-Rt0EW5TvZiNTJu3LvbI4VSIx_9NmS-DCaVVskB8yIhM"
 };
 
 // تهيئة اتصال يوتيوب
