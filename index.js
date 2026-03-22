@@ -4,7 +4,7 @@ const fs = require('fs');
 async function testPipeline() {
     try {
         // حط رابط أي فيديو تيكتوك بدك تجربه هون
-        const tiktokUrl = "https://www.tiktok.com/@username/video/123456789"; 
+        const tiktokUrl = "https://www.tiktok.com/@abu.odai1980/video/7599516768100535573"; 
         
         console.log("--- المرحلة 1: جلب الفيديو بدون علامة مائية ---");
         // yt-dlp بيعمل السحر هون
