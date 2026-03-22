@@ -1,12 +1,10 @@
-name: TikTok to YouTube Uploader
+name: Test TikTok Download & Process
 
 on:
-  schedule:
-    - cron: '0 */6 * * *' # يشتغل كل 6 ساعات
-  workflow_dispatch: # زر للتشغيل اليدوي
+  workflow_dispatch: # تشغيل يدوي بضغطة زر
 
 jobs:
-  build:
+  test_run:
     runs-on: ubuntu-latest
 
     steps:
@@ -18,19 +16,18 @@ jobs:
       with:
         node-version: '18'
 
-    - name: Install Tools (FFmpeg & yt-dlp)
+    - name: Install yt-dlp & FFmpeg
       run: |
         sudo apt-get update
         sudo apt-get install -y ffmpeg
         sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
         sudo chmod a+rx /usr/local/bin/yt-dlp
 
-    - name: Install Dependencies
-      run: npm install
-
-    - name: Run Script
-      env:
-        YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
-        YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
-        YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+    - name: Run Test Script
       run: node index.js
+
+    - name: Upload Processed Video
+      uses: actions/upload-artifact@v4
+      with:
+        name: my-processed-video
+        path: processed_video.mp4
