@@ -2,32 +2,33 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const { google } = require('googleapis');
 
-// --- 1. الإعدادات الأساسية ---
-const YOUTUBE_CONFIG = {
-    clientId: "80097892689-fatsck4rfg2n7g66ma33fm9jp24a3fes.apps.googleusercontent.com",
-    clientSecret: "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",
-    refreshToken: "1//04OySrfdvka32CgYIARAAGAQSNwF-L9IrDkZiwdv-6X0c9RfppP38Ngo-Rt0EW5TvZiNTJu3LvbI4VSIx_9NmS-DCaVVskB8yIhM"
+// --- 1. الإعدادات (Config) ---
+const CONFIG = {
+    youtube: {
+        clientId: "80097892689-fatsck4rfg2n7g66ma33fm9jp24a3fes.apps.googleusercontent.com",
+        clientSecret: "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",
+        refreshToken: "1//04OySrfdvka32CgYIARAAGAQSNwF-L9IrDkZiwdv-6X0c9RfppP38Ngo-Rt0EW5TvZiNTJu3LvbI4VSIx_9NmS-DCaVVskB8yIhM"
+    },
+    siteUrl: "https://redirectauto4kiro.blogspot.com/",
+    dbFile: 'history.json',
+    tiktokAccounts: [
+        'https://www.tiktok.com/@films2026_',
+        'https://www.tiktok.com/@adeyu_77'
+    ]
 };
 
-const MY_SITE = "كيرو زوزو ";
-const DB_FILE = 'published_history.json'; // ملف لتسجيل الفيديوهات المنشورة
-
-const tiktokAccounts = [
-    'https://www.tiktok.com/@films2026_',
-    'https://www.tiktok.com/@adeyu_77'
-];
-
-const oauth2Client = new google.auth.OAuth2(YOUTUBE_CONFIG.clientId, YOUTUBE_CONFIG.clientSecret);
-oauth2Client.setCredentials({ refresh_token: YOUTUBE_CONFIG.refreshToken });
+// تهيئة API يوتيوب
+const oauth2Client = new google.auth.OAuth2(CONFIG.youtube.clientId, CONFIG.youtube.clientSecret);
+oauth2Client.setCredentials({ refresh_token: CONFIG.youtube.refreshToken });
 const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-// --- 2. دوال الحماية الذكية ---
+// --- 2. الدوال المساعدة ---
 
-// فحص الفيديو السابق مباشرة (اللي قبل اللي نشرناه هسا)
-async function checkPreviousVideoStatus() {
-    console.log("🛡️ جاري فحص الفيديو السابق للتأكد من سلامته...");
+// دالة فحص الفيديو السابق لحماية القناة
+async function checkAndCleanupPrevious() {
+    console.log("🛡️ فحص أمان القناة (الفيديو السابق)...");
     try {
         const searchRes = await youtube.search.list({
             part: 'id',
@@ -37,292 +38,128 @@ async function checkPreviousVideoStatus() {
             order: 'date'
         });
 
-        const previousVideoId = searchRes.data.items[1]?.id?.videoId;
+        const prevId = searchRes.data.items[1]?.id?.videoId;
+        if (!prevId) return;
 
-        if (!previousVideoId) {
-            console.log("ℹ️ لا يوجد فيديو سابق لفحصه بعد.");
-            return;
-        }
+        const videoData = await youtube.videos.list({ part: 'status,snippet', id: prevId });
+        const video = videoData.data.items[0];
 
-        const res = await youtube.videos.list({
-            part: 'status,snippet',
-            id: previousVideoId
-        });
-
-        const video = res.data.items[0];
-        if (video) {
-            const isRejected = video.status.uploadStatus === 'rejected';
-            const hasClaim = video.status.rejectionReason === 'claim' || video.status.rejectionReason === 'copyright';
-
-            if (isRejected && hasClaim) {
-                console.log(`⚠️ تم كشف حقوق نشر على الفيديو السابق: ${video.snippet.title}`);
-                await youtube.videos.delete({ id: previousVideoId });
-                console.log(`🗑️ تم الحذف بنجاح لتنظيف القناة.`);
-            } else {
-                console.log(`✅ الفيديو السابق سليم تماماً.`);
-            }
+        if (video && video.status.uploadStatus === 'rejected') {
+            console.log(`⚠️ اكتشاف فيديو مرفوض: ${video.snippet.title}. جاري الحذف...`);
+            await youtube.videos.delete({ id: prevId });
+            console.log("🗑️ تم التنظيف.");
+        } else {
+            console.log("✅ لا توجد مشاكل في الفيديو السابق.");
         }
     } catch (e) {
-        console.log("ℹ️ تنبيه أثناء فحص الفيديو السابق: " + e.message);
+        console.log("ℹ️ ملاحظة الفحص: " + e.message);
     }
 }
 
-function buildProDescription(title) {
-    return `🎬 كيرو زوزو | KiroZozo - عالم الأفلام والمسلسلات\n` +
-           `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-           `💡 للمزيد من التفاصيل:\n` +
-           `🔍 ابحث في جوجل: ${MY_SITE}\n` +
-           `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-           `✨ نبذة عن هذا المقطع:\n` +
-           `${title || "لقطة مميزة مختارة لكم بعناية"}\n\n` +
-           `💡 لا تنسى دعمنا بالاشتراك وتفعيل الجرس (🔔) ليصلك كل جديد من كيرو زوزو.\n\n` +
-           `🏷️ #kirozozo #كيرو_زوزو #أفلام #مسلسلات #Shorts #Movies #Trend`;
-}
-
-async function postComment(videoId, text) {
+// دالة وضع التعليق المثبت
+async function postPinComment(videoId) {
+    const commentText = `🍿 شاهد الفيلم كامل أو حمله بجودة عالية من هنا: ${CONFIG.siteUrl}\n\n🔥 تابعوا كيرو زوزو - kirozozo للمزيد من المتعة!\n✨ لا تنسوا اللايك والاشتراك يا أساطير ❤️`;
     try {
         await youtube.commentThreads.insert({
             part: 'snippet',
             requestBody: {
                 snippet: {
                     videoId: videoId,
-                    topLevelComment: { snippet: { textOriginal: text } }
+                    topLevelComment: { snippet: { textOriginal: commentText } }
                 }
             }
         });
-        console.log(`💬 تم إضافة التعليق بنجاح.`);
-        return true;
+        console.log("💬 تم وضع تعليق الموقع بنجاح.");
     } catch (e) {
-        console.error(`❌ فشل التعليق: ${e.message}`);
-        return false;
+        console.error("❌ خطأ في التعليق:", e.message);
     }
 }
 
-// --- دالة لجلب فيديو واحد جديد فقط (الأقدم أو الأحدث حسب الرغبة) ---
-async function getNextVideoToPublish(accountUrl, publishedVideos) {
-    console.log(`📋 جلب الفيديوهات من: ${accountUrl}`);
+// بناء الوصف الاحترافي
+function getProDescription(title) {
+    return `🎬 كيرو زوزو | KiroZozo - عالم الأفلام والمسلسلات\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n📍 الرابط الرسمي: ${CONFIG.siteUrl}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n✨ نبذة:\n${title}\n\n🏷️ #kirozozo #كيرو_زوزو #أفلام #Shorts`;
+}
+
+// --- 3. المحرك الرئيسي (الروبوت) ---
+
+async function startKiroAutomation() {
+    let history = fs.existsSync(CONFIG.dbFile) ? JSON.parse(fs.readFileSync(CONFIG.dbFile)) : [];
     
+    // اختيار حساب عشوائي في كل مرة لتنويع المحتوى
+    const targetAccount = CONFIG.tiktokAccounts[Math.floor(Math.random() * CONFIG.tiktokAccounts.length)];
+    console.log(`🔍 فحص فيديوهات: ${targetAccount}`);
+
     try {
-        // جلب جميع معرفات الفيديوهات من الحساب
-        const idsOutput = execSync(`yt-dlp --get-id --flat-playlist "${accountUrl}"`, { 
-            encoding: 'utf-8',
-            maxBuffer: 10 * 1024 * 1024
-        });
+        // سحب آخر 30 ID لضمان الوصول للفيديوهات القديمة غير المنشورة
+        const idsRaw = execSync(`yt-dlp --get-id --playlist-items 30 "${targetAccount}"`, { encoding: 'utf-8' });
+        const allIds = idsRaw.trim().split('\n').filter(id => id.length > 0);
         
-        let videoIds = idsOutput.trim().split('\n').filter(id => id.length > 0);
-        console.log(`✅ تم العثور على ${videoIds.length} فيديو في الحساب`);
-        
-        // تصفية الفيديوهات التي لم تنشر بعد
-        const newVideos = videoIds.filter(id => !publishedVideos.includes(id));
-        console.log(`📊 فيديوهات جديدة غير منشورة: ${newVideos.length}`);
-        
-        if (newVideos.length === 0) {
-            return null;
+        // البحث عن أول فيديو لم يسبق نشره
+        const nextVideoId = allIds.find(id => !history.includes(id));
+
+        if (!nextVideoId) {
+            console.log("✨ مبروك! كل فيديوهات هذا الحساب منشورة بالفعل.");
+            await checkAndCleanupPrevious(); // فحص حتى لو لم ينشر
+            return;
         }
-        
-        // اختيار الفيديو الأقدم أولاً (عكس الترتيب)
-        // لو حبيت تنشر الأحدث أولاً، امسح الـ reverse()
-        const oldestFirst = newVideos.reverse();
-        
-        console.log(`🎯 سيتم نشر الفيديو: ${oldestFirst[0]}`);
-        return oldestFirst[0];
-        
-    } catch (error) {
-        console.error(`❌ خطأ في جلب فيديوهات التيك توك: ${error.message}`);
-        return null;
-    }
-}
 
-// --- دالة لتحميل ونشر فيديو واحد ---
-async function publishSingleVideo(videoId, accountUrl) {
-    console.log(`\n📹 بدء معالجة الفيديو: ${videoId}`);
-    
-    let title = "مشهد رائع من كيرو زوزو 🔥";
-    try {
-        title = execSync(`yt-dlp --get-title "https://www.tiktok.com/@any/video/${videoId}"`, { 
-            encoding: 'utf-8' 
-        }).trim().replace(/#\w+/g, '');
-        console.log(`🎬 عنوان الفيديو: ${title.substring(0, 50)}...`);
-    } catch(e) {
-        console.log(`⚠️ تعذر جلب العنوان، سيتم استخدام العنوان الافتراضي`);
-    }
-    
-    // تحميل الفيديو
-    console.log("⬇️ جاري التحميل...");
-    execSync(`yt-dlp -f "bestvideo[height<=1080]+bestaudio/best" -o "input.mp4" "https://www.tiktok.com/@any/video/${videoId}"`);
-    
-    // معالجة احترافية
-    console.log("🛠️ جاري المعالجة بالفلاتر...");
-    execSync(`ffmpeg -i input.mp4 -vf "scale=iw*1.25:ih*1.25,crop=iw/1.25:ih/1.25,eq=brightness=0.01:contrast=1.03" -map_metadata -1 -c:v libx264 -crf 23 -c:a aac -y output.mp4`);
-    
-    // رفع الفيديو
-    console.log("📤 جاري الرفع إلى اليوتيوب...");
-    const uploadRes = await youtube.videos.insert({
-        part: 'snippet,status',
-        requestBody: {
-            snippet: {
-                title: `${title.substring(0, 70)} 🔥 #kirozozo`,
-                description: buildProDescription(title),
-                tags: ['kirozozo', 'كيرو زوزو', 'أفلام', 'Shorts'],
-                categoryId: '24' 
-            },
-            status: { privacyStatus: 'public' }
-        },
-        media: { body: fs.createReadStream('output.mp4') }
-    });
-    
-    const newYtId = uploadRes.data.id;
-    console.log(`✅ تم النشر بنجاح: https://youtu.be/${newYtId}`);
-    
-    // إضافة التعليق بعد 60 ثانية
-    console.log("⏳ انتظار 120 ثانية قبل إضافة التعليق...");
-    await delay(120000);
-    
-    const proComment = `لمزيد من المحتوى زورونا على  ${MY_SITE}\n\n` +
-                       `🔥 تابعوا كيرو زوزو - kirozozo للمزيد من المتعة!\n` +
-                       `✨ لا تنسوا اللايك والاشتراك يا أساطير ❤️`;
-    
-    await postComment(newYtId, proComment);
-    
-    // تنظيف الملفات المؤقتة
-    ['input.mp4', 'output.mp4'].forEach(f => { 
-        if(fs.existsSync(f)) fs.unlinkSync(f); 
-    });
-    
-    return { 
-        success: true, 
-        videoId: videoId, 
-        youtubeId: newYtId, 
-        title: title,
-        account: accountUrl,
-        publishedAt: new Date().toISOString()
-    };
-}
+        console.log(`🚀 معالجة فيديو جديد: ${nextVideoId}`);
 
-// --- المحرك الرئيسي (ينشر فيديو واحد فقط في كل مرة) ---
-async function startKiroSystem() {
-    console.log("🚀 بدء تشغيل نظام نشر الفيديوهات (فيديو واحد لكل تشغيلة)");
-    console.log("=" .repeat(50));
-    
-    // قراءة تاريخ الفيديوهات المنشورة
-    let publishedVideos = [];
-    let fullHistory = [];
-    
-    if (fs.existsSync(DB_FILE)) {
+        // جلب العنوان
+        let videoTitle = "مشهد أسطوري 🔥";
         try {
-            const data = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-            if (Array.isArray(data)) {
-                // إذا كان الملف عبارة عن مصفوفة بسيطة (للتوافق مع القديم)
-                publishedVideos = data;
-                fullHistory = data.map(id => ({ videoId: id }));
-            } else if (data.publishedVideos) {
-                // إذا كان الملف يحتوي على هيكل متقدم
-                publishedVideos = data.publishedVideos || [];
-                fullHistory = data.history || [];
-            }
-            console.log(`📊 تم استعادة سجل النشر: ${publishedVideos.length} فيديو منشور سابقاً`);
-        } catch(e) {
-            console.log("⚠️ خطأ في قراءة ملف السجل، سيتم البدء من جديد");
-            publishedVideos = [];
-        }
-    } else {
-        console.log("📝 لا يوجد سجل سابق، سيتم البدء من البداية");
-    }
-    
-    // البحث عن فيديو جديد من حسابات التيك توك
-    let selectedVideoId = null;
-    let selectedAccount = null;
-    
-    // محاولة جلب فيديو جديد من كل حساب بالترتيب
-    for (const account of tiktokAccounts) {
-        console.log(`\n🔍 البحث في حساب: ${account}`);
-        const nextVideo = await getNextVideoToPublish(account, publishedVideos);
+            videoTitle = execSync(`yt-dlp --get-title "https://www.tiktok.com/@any/video/${nextVideoId}"`, { encoding: 'utf-8' }).trim().split('\n')[0].replace(/#\w+/g, '');
+        } catch (e) {}
+
+        // التحميل والمعالجة
+        console.log("📥 تحميل...");
+        execSync(`yt-dlp -f "bestvideo[height<=1080]+bestaudio/best" -o "input.mp4" "https://www.tiktok.com/@any/video/${nextVideoId}"`);
         
-        if (nextVideo) {
-            selectedVideoId = nextVideo;
-            selectedAccount = account;
-            console.log(`✅ تم العثور على فيديو جديد للنشر: ${nextVideo}`);
-            break;
-        } else {
-            console.log(`ℹ️ لا توجد فيديوهات جديدة للنشر في هذا الحساب`);
-        }
-    }
-    
-    // إذا لم نجد أي فيديو جديد
-    if (!selectedVideoId) {
-        console.log("\n🎉 مبروك! تم نشر جميع الفيديوهات من جميع الحسابات!");
-        console.log(`📊 إجمالي الفيديوهات المنشورة: ${publishedVideos.length}`);
-        
-        // عرض آخر 5 فيديوهات منشورة
-        if (fullHistory.length > 0) {
-            console.log("\n📋 آخر 5 فيديوهات تم نشرها:");
-            const last5 = fullHistory.slice(-5);
-            last5.forEach((item, index) => {
-                console.log(`   ${index + 1}. ${item.videoId} - ${item.title || 'بدون عنوان'}`);
-            });
-        }
-        return;
-    }
-    
-    // نشر الفيديو الجديد
-    console.log("\n📤 بدء عملية النشر...");
-    console.log(`🎯 الفيديو المختار: ${selectedVideoId}`);
-    console.log(`📱 من حساب: ${selectedAccount}`);
-    
-    try {
-        const result = await publishSingleVideo(selectedVideoId, selectedAccount);
-        
-        if (result.success) {
-            // تحديث سجل النشر
-            publishedVideos.push(selectedVideoId);
-            
-            // حفظ السجل بشكل متقدم
-            const historyData = {
-                publishedVideos: publishedVideos,
-                lastPublished: new Date().toISOString(),
-                totalPublished: publishedVideos.length,
-                history: [
-                    ...(fullHistory),
-                    {
-                        videoId: selectedVideoId,
-                        youtubeId: result.youtubeId,
-                        title: result.title,
-                        account: selectedAccount,
-                        publishedAt: result.publishedAt
-                    }
-                ]
-            };
-            
-            fs.writeFileSync(DB_FILE, JSON.stringify(historyData, null, 2));
-            console.log("\n✅ تم حفظ السجل بنجاح!");
-            
-            // فحص الفيديو السابق
-            await checkPreviousVideoStatus();
-            
-            // عرض إحصائيات
-            console.log("\n📊 إحصائيات النشر:");
-            console.log(`   ✅ الفيديو المنشور: ${selectedVideoId}`);
-            console.log(`   🔗 رابط اليوتيوب: https://youtu.be/${result.youtubeId}`);
-            console.log(`   📅 تاريخ النشر: ${result.publishedAt}`);
-            console.log(`   📈 إجمالي المنشورات: ${publishedVideos.length}`);
-            
-        } else {
-            console.log("❌ فشل نشر الفيديو");
-        }
-        
-    } catch (error) {
-        console.error("❌ خطأ أثناء عملية النشر:", error.message);
-        
-        // تنظيف الملفات المؤقتة في حالة الخطأ
-        ['input.mp4', 'output.mp4'].forEach(f => { 
-            if(fs.existsSync(f)) fs.unlinkSync(f); 
+        console.log("🎨 معالجة (بصمة رقمية جديدة)...");
+        // زوم 125% + تعديل طفيف للألوان لتخطي الفلتر
+        execSync(`ffmpeg -i input.mp4 -vf "scale=iw*1.25:ih*1.25,crop=iw/1.25:ih/1.25,eq=brightness=0.01:contrast=1.02" -map_metadata -1 -c:v libx264 -crf 22 -c:a aac -y output.mp4`);
+
+        // الرفع ليوتيوب
+        console.log("📤 جاري الرفع...");
+        const upload = await youtube.videos.insert({
+            part: 'snippet,status',
+            requestBody: {
+                snippet: {
+                    title: `${videoTitle.substring(0, 70)} 🔥 #kirozozo`,
+                    description: getProDescription(videoTitle),
+                    tags: ['kirozozo', 'كيرو زوزو', 'أفلام', 'Shorts'],
+                    categoryId: '24'
+                },
+                status: { privacyStatus: 'public' }
+            },
+            media: { body: fs.createReadStream('output.mp4') }
         });
+
+        const newYoutubeId = upload.data.id;
+        console.log(`✅ تم النشر: https://youtu.be/${newYoutubeId}`);
+
+        // تحديث التاريخ فوراً
+        history.push(nextVideoId);
+        fs.writeFileSync(CONFIG.dbFile, JSON.stringify(history, null, 2));
+
+        // فحص الفيديو السابق
+        await checkAndCleanupPrevious();
+
+        // وضع التعليق بعد 10 ثوانٍ
+        await delay(10000);
+        await postPinComment(newYoutubeId);
+
+    } catch (err) {
+        if (err.message.includes("exceeded the number of videos")) {
+            console.error("❌ وصلنا للحد اليومي للنشر في يوتيوب. توقف الآن.");
+        } else {
+            console.error("⚠️ خطأ في العمليات:", err.message);
+        }
+    } finally {
+        // تنظيف الملفات
+        ['input.mp4', 'output.mp4'].forEach(f => { if(fs.existsSync(f)) fs.unlinkSync(f); });
     }
-    
-    console.log("\n🏁 انتهت عملية النشر (فيديو واحد)");
 }
 
-// تشغيل النظام
-startKiroSystem().catch(error => {
-    console.error("❌ خطأ عام في النظام:", error.message);
-});
+// انطلاق!
+startKiroAutomation();
