@@ -22,6 +22,7 @@ oauth2Client.setCredentials({ refresh_token: CONFIG.youtube.refreshToken });
 const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+// دالة بناء الوصف
 function buildSEODescription(title) {
     return `🎬 شاهد أجمل مقاطع الأفلام والمسلسلات الحصرية على قناة ${CONFIG.brandName}.\n` +
            `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -29,7 +30,16 @@ function buildSEODescription(title) {
            `${title}\n\n` +
            `🍿 للمزيد ابحث عن "كيرو زوزو" على جوجل.\n` +
            `💡 اشترك وفعل الجرس (🔔) ليصلك كل جديد.\n` +
-           `#كيرو_زوزو #Shorts #Movies #Trending`;
+           `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+           `#كيرو_زوزو #Shorts #Movies #Trending #أفلام #سينما`;
+}
+
+// دالة توليد الكلمات المفتاحية (Tags)
+function generateTags(title) {
+    const basicTags = ['كيرو زوزو', 'Kiro Zozo', 'أفلام', 'مسلسلات', 'Shorts', 'قصص افلام', 'دراما', 'ملخص أفلام'];
+    // تحويل الكلمات الموجودة في العنوان إلى تاجات إضافية (بشرط تكون أكثر من 3 أحرف)
+    const titleTags = title.split(' ').filter(word => word.length > 3).slice(0, 5);
+    return [...new Set([...basicTags, ...titleTags])]; // دمج ومنع التكرار
 }
 
 async function startProfessionalAutomation() {
@@ -41,44 +51,45 @@ async function startProfessionalAutomation() {
         console.log(`\n🔎 فحص الحساب: ${account}`);
         
         try {
-            // جلب الأيديهات بدون حد معين (للبحث عن القديم)
-            // ملاحظة: إذا توقف الجلب، استخدم: --cookies-from-browser chrome
             const idsRaw = execSync(`yt-dlp --flat-playlist --get-id "${account}"`, { encoding: 'utf-8' });
             let allIds = idsRaw.trim().split('\n').filter(id => id.trim().length > 0);
 
             if (allIds.length === 0) continue;
 
-            // نعكس المصفوفة لنبدأ من أقدم فيديو في الحساب (بالترتيب)
             allIds.reverse();
-
-            // العثور على أول فيديو لم يتم نشره مسبقاً
             const nextId = allIds.find(id => !history.includes(id));
 
             if (nextId) {
                 console.log(`🎯 تم العثور على فيديو مستهدف: ${nextId}`);
                 
-                // 1. التحميل (بجودة 1080p كحد أقصى)
+                // 1. التحميل
                 execSync(`yt-dlp -f "bestvideo[height<=1080]+bestaudio/best" -o "input.mp4" "https://www.tiktok.com/@any/video/${nextId}"`);
                 
-                // 2. المونتاج (تغيير البصمة لتخطي حقوق يوتيوب)
+                // 2. المونتاج
                 console.log("🎨 معالجة الفيديو تقنياً...");
                 execSync(`ffmpeg -i input.mp4 -vf "scale=iw*1.1:ih*1.1,crop=iw/1.1:ih/1.1,eq=brightness=0.03:contrast=1.05" -map_metadata -1 -c:v libx264 -crf 20 -c:a aac -y output.mp4`);
 
-                // 3. جلب العنوان الأصلي
+                // 3. جلب العنوان
                 let rawTitle = "فيديو رائع";
                 try { rawTitle = execSync(`yt-dlp --get-title "https://www.tiktok.com/@any/video/${nextId}"`, { encoding: 'utf-8' }).trim(); } catch(e){}
 
-                // 4. الرفع إلى يوتيوب
-                console.log("📤 جاري الرفع...");
+                // 4. الرفع إلى يوتيوب مع الكلمات المفتاحية
+                console.log("📤 جاري الرفع مع الكلمات المفتاحية...");
                 const upload = await youtube.videos.insert({
                     part: 'snippet,status',
                     requestBody: {
                         snippet: {
                             title: `${rawTitle.substring(0, 60)} 🔥 #كيرو_زوزو`,
                             description: buildSEODescription(rawTitle),
-                            categoryId: '24'
+                            tags: generateTags(rawTitle), // تم إضافة الكلمات المفتاحية هنا
+                            categoryId: '24', // Category: Entertainment
+                            defaultLanguage: 'ar',
+                            defaultAudioLanguage: 'ar'
                         },
-                        status: { privacyStatus: 'public', selfDeclaredMadeForKids: false }
+                        status: { 
+                            privacyStatus: 'public', 
+                            selfDeclaredMadeForKids: false 
+                        }
                     },
                     media: { body: fs.createReadStream('output.mp4') }
                 });
@@ -90,29 +101,31 @@ async function startProfessionalAutomation() {
                 history.push(nextId);
                 fs.writeFileSync(CONFIG.dbFile, JSON.stringify(history, null, 2));
 
-                // 6. إضافة التعليق بعد انتظار 3 دقائق (اختياري للحماية)
-                console.log("⏳ انتظار 1 دقائق للتعليق...");
+                // 6. إضافة التعليق
+                console.log("⏳ انتظار 1 دقيقة للتعليق...");
                 await delay(60000);
-                await youtube.commentThreads.insert({
-                    part: 'snippet',
-                    requestBody: {
-                        snippet: {
-                            videoId: newId,
-                            topLevelComment: { snippet: { textOriginal: `🍿 لمشاهدة الفيلم كامل زوروا موقعنا: ${CONFIG.siteUrl}` } }
+                try {
+                    await youtube.commentThreads.insert({
+                        part: 'snippet',
+                        requestBody: {
+                            snippet: {
+                                videoId: newId,
+                                topLevelComment: { snippet: { textOriginal: `🍿 لمشاهدة الفيلم كامل أو تحميله بجودة عالية زوروا موقعنا: ${CONFIG.siteUrl}` } }
+                            }
                         }
-                    }
-                });
+                    });
+                    console.log("💬 تم إضافة التعليق بنجاح.");
+                } catch (err) { console.log("⚠️ تعذر إضافة التعليق."); }
 
-                console.log("🚀 تم نشر فيديو واحد بنجاح. إنهاء السكريبت.");
-                return; // هذا الأمر سيخرج من الدالة بالكامل ويغلق السكريبت فوراً
+                console.log("🚀 تم إنهاء العملية.");
+                return; 
             } else {
-                console.log("✅ هذا الحساب تم نشر كل فيديوهاته، ننتقل للحساب التالي...");
+                console.log("✅ الحساب مراجع بالكامل.");
             }
         } catch (err) {
             console.error(`⚠️ مشكلة في الحساب ${account}:`, err.message);
         }
     }
-    console.log("🏁 لا يوجد فيديوهات جديدة في أي من الحسابات!");
 }
 
 startProfessionalAutomation();
