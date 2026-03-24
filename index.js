@@ -9,7 +9,7 @@ const CONFIG = {
         refreshToken: "1//042s_C9epVc9rCgYIARAAGAQSNwF-L9IrjPshBrVUO_vfKgcR1pjWFwsCqRSJfb5pS3IGxIJvdsZI44aDB9HaCtd8wR6v_aPAd5o"
     },
     brandName: "كيرو زوزو - Kiro Zozo",
-    siteUrl: "https://redirectauto4kiro.blogspot.com/",
+    siteUrl: "https://redirectauto4kiro.blogspot.com",
     dbFile: 'history.json',
     tiktokAccounts: [
         'https://www.tiktok.com/@films2026_',
@@ -110,7 +110,7 @@ async function startProfessionalAutomation() {
                         requestBody: {
                             snippet: {
                                 videoId: newId,
-                                topLevelComment: { snippet: { textOriginal: `🍿 لمشاهدة الفيلم كامل أو تحميله بجودة عالية زوروا موقعنا: ${CONFIG.siteUrl}` } }
+                                topLevelComment: { snippet: { textOriginal: `🍿 لمشاهده الأفلام والمسلسلات كامله زوروا موقعنا: ${CONFIG.siteUrl}` } }
                             }
                         }
                     });
