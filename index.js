@@ -12,8 +12,7 @@ const CONFIG = {
     siteUrl: "https://redirectauto4kiro.blogspot.com",
     dbFile: 'history.json',
     tiktokAccounts: [
-        'https://www.tiktok.com/@films2026_',
-        'https://www.tiktok.com/@adeyu_77'
+        'https://www.tiktok.com/@ftonnysweden'
     ]
 };
 
