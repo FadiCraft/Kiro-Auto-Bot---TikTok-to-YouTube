@@ -6,7 +6,7 @@ const CONFIG = {
     youtube: {
         clientId: "80097892689-fatsck4rfg2n7g66ma33fm9jp24a3fes.apps.googleusercontent.com",
         clientSecret: "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",
-        refreshToken: "1//04bliQUwOdwMJCgYIARAAGAQSNwF-L9IrVvkcfwwP4vrQ-7h2w3UQFvMjrq_1aYTO7uX28HuAVmTKuMDPuQ6vAvdK7LUP4CgvIEQ"
+        refreshToken: "1//04hgJOolYNBB5CgYIARAAGAQSNwF-L9IrGrgA_DqmX6TkCLEGL78AaE9KBudlm86mGniqcUJiV6b4x2OPDeK-M86sg8dG5TymNOU"
     },
     brandName: "كيرو زوزو - Kiro Zozo",
     siteUrl: "https://redirectauto4kiro.blogspot.com",
